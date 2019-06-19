@@ -1,0 +1,34 @@
+﻿<Window x:Class="QAScript.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:QAScript.Views"
+        mc:Ignorable="d"
+        Title="Plan QA Script" FontSize="14" MaxWidth="600"
+        WindowStartupLocation="CenterScreen"
+        SizeToContent="WidthAndHeight">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="100" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="100" />
+            <ColumnDefinition Width="1*" />
+            <ColumnDefinition Width="10" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="10" />
+            <RowDefinition Height="1*" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="30" />
+            <RowDefinition Height="10" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="QAMessage" Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="4" TextWrapping="Wrap" Height="auto" Width="auto" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" />
+        <Button x:Name="Close1" Content="Close" Grid.Column="1" Grid.Row="3" FontSize="14" Click="Close1_Click" />
+        <Button x:Name="Details1" Content="Details" Grid.Column="3" Grid.Row="3" FontSize="14" Click="Details1_Click" />
+
+    </Grid>
+</Window>
+
