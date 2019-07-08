@@ -125,15 +125,15 @@ namespace QAScript
             }
             table.Rows.Add(row);
 
-            // Check that the X Jaw setting is no greater than 20 cm for a beam of type "ARC".
+            // Check that the X Jaw setting is no greater than 20 cm for a beam of type "ARC" or "SRS ARC".
             row = table.NewRow();
-            row["Item"] = "The X Jaw setting is no greater than 20 cm for a beam of type \"ARC\"";
+            row["Item"] = "The X Jaw setting is no greater than 20 cm for a beam of type \"ARC\" or \"SRS ARC\"";
             int FoundXFSTooBig = 0;
             foreach (Beam scan in listofbeams)
             {
                 double XFS = 0;
                 double YFS = 0;
-                if (scan.Technique.Id.Equals("ARC"))
+                if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                 {
                     var listofCP = scan.ControlPoints;
                     foreach (ControlPoint cp in listofCP)
@@ -159,13 +159,13 @@ namespace QAScript
             }
             table.Rows.Add(row);
 
-            // For Fields of type "ARC" Check that colimator angle is not zero
+            // For Fields of type "ARC" and "SRS ARC", check that collimator angle is not zero
             row = table.NewRow();
-            row["Item"] = "For Fields of type \"ARC\", check that colimator angle is not zero";
+            row["Item"] = "For Fields of type \"ARC\" and \"SRS ARC\", check that collimator angle is not zero";
             foreach (Beam scan in listofbeams)
             {
                 int BadColAngle = 0;
-                if (scan.Technique.Id.Equals("ARC"))
+                if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                 {
                     var listofCP = scan.ControlPoints;
                     foreach (ControlPoint cp in listofCP)
@@ -264,7 +264,7 @@ namespace QAScript
             int DiffinCWvsCCW;
             foreach (Beam scan in listofbeams)
             {
-                if (scan.Technique.Id.Equals("ARC"))
+                if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                 {
                     if (scan.GantryDirection.ToString() == "Clockwise")
                     {
@@ -657,7 +657,7 @@ namespace QAScript
             {
                 if (scan.IsSetupField == false)
                 {
-                    if (scan.Technique.Id.Equals("ARC"))
+                    if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                     {
                         if (scan.Id.ToLower().Contains("arc") == false)
                         {
@@ -1263,7 +1263,7 @@ namespace QAScript
 
             //foreach (Beam scan in listofbeams)
             //{
-            //    if (scan.Technique.Id.Equals("ARC"))
+            //    if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
             //    {
             //        var listofCP = scan.ControlPoints;
             //        foreach (ControlPoint cp in listofCP)
