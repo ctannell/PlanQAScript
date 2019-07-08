@@ -1,0 +1,4 @@
+﻿QA Script Changelog
+
+v2.0.1
+-Added "SRS ARC" to the tests that were looking for arcs using the "ARC" technique.
