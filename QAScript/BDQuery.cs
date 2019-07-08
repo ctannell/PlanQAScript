@@ -62,7 +62,7 @@ namespace QAScript
             bool foundarc = false;
             foreach (Beam scan in listofbeams)
             {
-                if (scan.Technique.Id.Equals("ARC"))
+                if (scan.Technique.Id.Equals("ARC") || scan.Technique.Equals("SRS ARC"))
                 {
                     foundarc = true;
                 }
