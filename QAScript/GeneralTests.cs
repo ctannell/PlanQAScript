@@ -1246,33 +1246,21 @@ namespace QAScript
             }
             table.Rows.Add(row);
 
-            // Look for arcs that sweep in the wrong direction such that they enter through the far side of the patient.
-            // I'm just going to leave this one for now as it's quite a bit of work for something you can just see by looking at the plan.
+            // Check for small targets below 2 cm diameter and advise that physics be consulted if it's below that limit.
+            row = table.NewRow();
+            row["Item"] = "The primary target is above approximately 2 cm in diameter.";
 
-            //row = table.NewRow();
-            //row["Item"] = "xyz";
-            // Get the laterial location of BODY center of mass
-            //double bodyxcenter; // This is from the DICOM origin, not the Eclipse user origin. Same for the beam iso through. Probably just subtract the two and look for control points on each side. Need to program orientation though.
-            //foreach (Structure str in listofstructures2)
-            //{
-            //    if (str.Id.Contains("LENS_R"))
-            //    {
-            //        bodyxcenter = str.CenterPoint.x;
-            //    }
-            //}
-
-            //foreach (Beam scan in listofbeams)
-            //{
-            //    if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
-            //    {
-            //        var listofCP = scan.ControlPoints;
-            //        foreach (ControlPoint cp in listofCP)
-            //        {
-
-            //        }
-            //    }
-            //}
-
+            if (plan.TargetVolumeID != "")
+            {
+                Structure structure = plan.StructureSet.Structures.Where(s => s.Id == plan.TargetVolumeID).Single();
+                if (structure.Volume < 4.18879) // This is the volume of a 2 cm wide sphere in cc.
+                {
+                    double equivdiam = 2 * Math.Pow((3 * structure.Volume / (4 * Math.PI)), 1 / 3.0);
+                    msg += "\n\nThe size of the primary target is quite small (" + structure.Volume.ToString("0.0") + " cc). This would have an eqivalent diameter sphere of " +
+                        equivdiam.ToString("0.0") + " cm which is below the 2 cm limit where we might start to see dose calculation accuracy issues. Please consult physics.";
+                }
+            }
+            table.Rows.Add(row);
 
 
 

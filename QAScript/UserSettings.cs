@@ -12,7 +12,7 @@ namespace QAScript
         public static void DefineUserSettings()
         {
             SomeProperties.User = "ESAPI Standalone"; // Aria username (just for logging purposes in standalone mode)
-            SomeProperties.ScriptVersion = "v2.0.1"; //Used to track what version was used in the useage log
+            SomeProperties.ScriptVersion = "v2.0.2"; //Used to track what version was used in the useage log
             SomeProperties.LoggingFlag = true; // Do you want to write to the log file?
             SomeProperties.LogPath = @"I:\Tanner\ESAPI\QAScript\log.txt"; // Path for log file.
             SomeProperties.DBDataSource = "172.xxx.xxx.xxx"; // IP of varian DB.
