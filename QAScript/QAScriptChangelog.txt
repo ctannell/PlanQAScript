@@ -1,0 +1,22 @@
+QA Script Changelog
+
+v2.0.3
+- Added a check for SC+AX fields to make sure the "extended" option is delected for post fields
+- If the couch angle is not zero, then the angle should be contained in the field name in the form “Txyz” where xyz is the angle
+- Reworked the logic of the pass/fail indicator in the details window.
+
+v2.0.1
+-Added "SRS ARC" to the tests that were looking for arcs using the "ARC" technique.
+
+v2.0
+- A rewrite of the entire code. It follows the method by Rex at https://www.youtube.com/watch?v=iVAQf_bsaZg&t where the same code base can be run as a standalone (for easy debugging) or a script (for deployment). Note that an extra script file exists outside the solution that is the file launched by Eclipse in script mode. The script sends the context to the compiled exe into the XScript class. XScript uses the MarshalbyRefObject inherited class that allows remote communication between applications.
+- Added direct DB queries to grab missing info that is not available to the API
+- Rewrote the GUI to use WPF
+- GUI now has a details button that shows a window listing all the tests performed by the script
+
+v1.4.5
+-Added check to find electron fields before checking electron beam model.
+-Added "SRS ARC" to techniques that involve checking normalization method is 100% to 95% of the volume.
+
+
+

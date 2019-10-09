@@ -22,7 +22,8 @@ namespace QAScript
             //// Manually define plan to be opened when run as a standalone app ////
             SomeProperties.PatientId = "QA_ESAPI"; // Set patient ID property
             SomeProperties.CourseId = "C1"; // Set course ID property
-            SomeProperties.PlanId = "FP1 BRAIN"; // Set plan ID property
+            SomeProperties.PlanId = "UnitTest0"; // Set plan ID property
+
 
 
             // Load general settigns;

@@ -25,12 +25,12 @@ namespace QAScript.Views
         {
             InitializeComponent();
             DataTable dt = SomeProperties.MsgDataTable;
-            // Loop through datatable and add pass to any test results that are empty (ie, not fail)
+            // Loop through datatable and add "unknown" to any test results that are not pass or fail
             foreach (DataRow row in dt.Rows)
             {
                 if (row["Result"].ToString() == "")
                 {
-                    row["Result"] = "Pass";
+                    row["Result"] = "Unknown";
                 }
             }
 

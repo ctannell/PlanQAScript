@@ -54,7 +54,7 @@ namespace QAScript
             SqlDataReader dataReader;
             SqlCommand SQLcmd;
             string sql;
-
+            bool emptydatareader;
             // Get plan normalization value and check that it is within 10 percent of 100 if it is an arc delivery (values outside this range can indicate poor delivery accuracy). 
             row = table.NewRow();
             row["Item"] = "The plan normalization value is within 10 percent of 100 if it is an arc delivery (values outside this range can indicate poor delivery accuracy)";
@@ -78,6 +78,12 @@ namespace QAScript
                 SQLcmd = new SqlCommand(sql, connection);
                 dataReader = SQLcmd.ExecuteReader();
 
+                emptydatareader = false;
+                if (!dataReader.HasRows)
+                {
+                    emptydatareader = true;
+                }
+
                 while (dataReader.Read())
                 {
                     Output = dataReader.GetValue(0).ToString();
@@ -92,6 +98,14 @@ namespace QAScript
                     msg += "\n\nPlan normalization value deviates from 100% by more than 10%. The actual value is " + Math.Round(normval, 1) + "%. Values outside this range can indicate poor delivery accuracy, possibly caused by changing the dose per fraction after an optimization, or normalizing the plan far away from the target objective in the optimizer.";
                     row["Result"] = "Fail";
                 }
+                else if (emptydatareader == false)
+                {
+                    row["Result"] = "Pass";
+                }
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -109,6 +123,12 @@ namespace QAScript
             bool foundwrongimagervalue = false;
             bool foundwrongsetupnote = false;
             bool foundwrongtolerance = false;
+
+            emptydatareader = false;
+            if (!dataReader.HasRows)
+            {
+                emptydatareader = true;
+            }
 
             while (dataReader.Read())
             {
@@ -157,6 +177,10 @@ namespace QAScript
                 msg += "\n\nAt least one beam has a imager vrt value that is not the expected 50 cm.";
                 row["Result"] = "Fail";
             }
+            if (foundwrongimagervalue == false && foundwrongcouchvalue == false && emptydatareader == false)
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Plan setup note for each field begins with the course name followed by the plan name.
@@ -167,6 +191,10 @@ namespace QAScript
                 msg += "\n\nAt least one beam has a setup note that is not the expected course name, followed by a space, followed by the plan name.";
                 row["Result"] = "Fail";
             }
+            else if (emptydatareader == false)
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Tolerance table matches the selected machine
@@ -176,6 +204,10 @@ namespace QAScript
             {
                 msg += "\n\nAt least one beam has a tolerance table value that does not match the machine used.";
                 row["Result"] = "Fail";
+            }
+            else if (emptydatareader == false)
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -194,6 +226,12 @@ namespace QAScript
             dt.Columns.Add("TotalDoseLimit");
             dt.Columns.Add("DailyDoseLimit");
             dt.Columns.Add("SessionDoseLimit");
+
+            emptydatareader = false;
+            if (!dataReader.HasRows)
+            {
+                emptydatareader = true;
+            }
 
             while (dataReader.Read())
             {
@@ -228,6 +266,10 @@ namespace QAScript
                             "They are currently set to " + Convert.ToDouble(dtrow[2]).ToString("0.000") + ", " + Convert.ToDouble(dtrow[3]).ToString("0.000") + " and " + Convert.ToDouble(dtrow[4]).ToString("0.000") + " respectively.";
                         row["Result"] = "Fail";
                     }
+                    else if (emptydatareader == false)
+                    {
+                        row["Result"] = "Pass";
+                    }
                     break;
                 }
 
@@ -235,7 +277,7 @@ namespace QAScript
             table.Rows.Add(row);
 
             // Now to check the radcalc point (if it's found) dose limits. This requres a bit more math because we can't get the expected values from the API.
-            // It requires a DB query to get what is called the "field dose" to the point for each field. Sum up the field dose and you've got your actual delivered session dose. Multiply by fractions and you've got your total dose limit.
+            // It requires a DB query to get what is called the "field dose" to the point for each field. Sum up the field dose and you've got your actual delivered session dose. Multiply by # of fractions and you've got your total dose limit.
             row = table.NewRow();
             row["Item"] = "Dose limits (total, day and session) for the RADCALC reference point (if it's found) match the dose recorded to that point in Eclipse assuming one fraction max per day";
             decimal sumradcalcfielddose = 0;
@@ -274,6 +316,10 @@ namespace QAScript
                                 "They are currently set to " + Convert.ToDouble(dtrow[2]).ToString("0.000") + ", " + Convert.ToDouble(dtrow[3]).ToString("0.000") + " and " + Convert.ToDouble(dtrow[4]).ToString("0.000") + " respectively.";
                             row["Result"] = "Fail";
                         }
+                        else if (emptydatareader == false)
+                        {
+                            row["Result"] = "Pass";
+                        }
                         break;
                     }
                 }
@@ -283,14 +329,16 @@ namespace QAScript
             // If there is a radcalc point, we'd also want to check that it is in a dose region that is at a minimum 90% of the Rx dose.
             row = table.NewRow();
             row["Item"] = "If a Radcalc point exists, make sure that it's in a high dose region (>90% of the prescription dose)";
-            if (foundradcalcpoint == true)
+            if (foundradcalcpoint == true && Convert.ToDouble(totalradcalcdose) < (0.9 * Convert.ToDouble(plan.TotalPrescribedDose.ValueAsString)))
             {
-                if (Convert.ToDouble(totalradcalcdose) < (0.9 * Convert.ToDouble(plan.TotalPrescribedDose.ValueAsString)))
-                {
-                    msg += "\n\nThe Radcalc point " + radcalcname + " is in a dose region where the dose is less than 90 percent of the prescription dose. Consider moving it to a higher dose region to improve accuracy.";
-                    row["Result"] = "Fail";
-                }
+                msg += "\n\nThe Radcalc point " + radcalcname + " is in a dose region where the dose is less than 90 percent of the prescription dose. Consider moving it to a higher dose region to improve accuracy.";
+                row["Result"] = "Fail";
             }
+            else if (emptydatareader == false)
+            {
+                row["Result"] = "Pass";
+            }
+            
             table.Rows.Add(row);
 
             // If the plan, ct or structure set ends with "bh" (what we do when we use gating) then the "Use Gated" should be checked in the plan properties. Do ther reverse check as well on the names if the box is checked.
@@ -302,6 +350,11 @@ namespace QAScript
             dataReader = SQLcmd.ExecuteReader();
 
             string MotionCompTechnique = "";
+            emptydatareader = false;
+            if (!dataReader.HasRows)
+            {
+                emptydatareader = true;
+            }
 
             while (dataReader.Read())
             {
@@ -349,6 +402,10 @@ namespace QAScript
                 msg += ".";
                 row["Result"] = "Fail";
             }
+            else if (emptydatareader == false)
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Now do the opposite, if a bh is found on the end of any of the three items, make sure gating is checked.
@@ -362,6 +419,10 @@ namespace QAScript
                     row["Result"] = "Fail";
                 }
             }
+            else if (emptydatareader == false)
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Check that all setup field DRRs have the "Bones" parameter sets applied (Basically the window and level of the DRR).
@@ -374,7 +435,15 @@ namespace QAScript
             dataReader = SQLcmd.ExecuteReader();
 
             row = table.NewRow();
-            row["Item"] = "Check that all setup fields have either the \"Bones\" or \"ANT kv\" DRR setting applied";
+            row["Item"] = "Check that all setup fields have either the \"Bones\" or \"ANT kv\" DRR setting applied.";
+
+            emptydatareader = false;
+            if (!dataReader.HasRows)
+            {
+                emptydatareader = true;
+            }
+
+            bool badDRR = false;
             while (dataReader.Read())
             {
                 string RadiationId = dataReader.GetValue(0).ToString();
@@ -383,14 +452,103 @@ namespace QAScript
 
                 if (SetupFieldFlag == "1" && RadiationId != "CBCT" && (DRRTemplateFileName != "Bones.dps" && DRRTemplateFileName != "ANT kV.dps"))
                 {
-                    msg += "\n\nThe setup field \"" + RadiationId + "\" DRR did not have the expected \"Bones\" or \"ANT kV\" DRR setting applied. The DRR setting used was: " + DRRTemplateFileName;
-                    row["Result"] = "Fail";
+                    msg += "\n\nThe setup field \"" + RadiationId + "\" DRR did not have the expected \"Bones\" or \"ANT kV\" DRR setting applied. The DRR setting used was: " + DRRTemplateFileName + ".";
+                    badDRR = true;
                 }
+
             }
-            table.Rows.Add(row);
             dataReader.Close();
 
+            if (badDRR == true)
+            {
+                row["Result"] = "Fail";
+            }
+            else if (emptydatareader == false)
+            {
+                row["Result"] = "Pass";
+            }
+            table.Rows.Add(row);
 
+            // Check that the POST field of any RSC+AX plans has the "Extended" option selected and that it's not selected for left plans.
+            row = table.NewRow();
+            row["Item"] = "Check that the POST field of any RSC+AX plans has the \"extended\' option selected and left plans do not";
+            bool extendedcheckpassed = false;
+            if (plan.Id.ToLower().Contains("rsc+ax")) // This implies that it's a right "McGill" technique where we want the post field to have the "extended" checkbox enabled.
+            {
+                sql = "SELECT Radiation.RadiationId, ExternalField.GantryRtnExt" +
+                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.Radiation, variansystem.dbo.ExternalField " +
+                " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND" +
+                " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
+                SQLcmd = new SqlCommand(sql, connection);
+                dataReader = SQLcmd.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    string RadiationId = dataReader.GetValue(0).ToString(); // The field ID
+                    string GantryRtnExt = dataReader.GetValue(1).ToString(); // Two characters, one for the start and one for the stop angle. Each character is either "E" or "N". Ex: EE, EN, NE, or NN.
+
+                    if (RadiationId.ToLower().Contains("post"))
+                    {
+                        if (GantryRtnExt != "EN")
+                        {
+                            msg += "\n\nThis plan is a right SC+AX plan. It's expected that the \"Extended\" option in the field properties is selected, but it's not.";
+                            row["Result"] = "Fail";
+                        }
+                        else
+                        {
+                            extendedcheckpassed = true;
+                        }
+
+                    }
+                }
+                dataReader.Close();
+            }
+
+            // Now for left sided plans
+            else if (plan.Id.ToLower().Contains("lsc+ax")) // This implies that it's a left "McGill" technique where we want the post field to not have the "extended" checkbox enabled.
+            {
+                sql = "SELECT Radiation.RadiationId, ExternalField.GantryRtnExt" +
+                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.Radiation, variansystem.dbo.ExternalField " +
+                " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND" +
+                " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
+                SQLcmd = new SqlCommand(sql, connection);
+                dataReader = SQLcmd.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    string RadiationId = dataReader.GetValue(0).ToString(); // The field ID
+                    string GantryRtnExt = dataReader.GetValue(1).ToString(); // Two characters, one for the start and one for the stop angle. Each character is either "E" or "N". Ex: EE, EN, NE, or NN.
+
+                    if (RadiationId.ToLower().Contains("post"))
+                    {
+                        if (GantryRtnExt != "NN")
+                        {
+                            msg += "\n\nThis plan is a left SC+AX plan. It's expected that the \"Extended\" option in the field properties is not selected, but it is.";
+                            row["Result"] = "Fail";
+                        }
+                        else
+                        {
+                            extendedcheckpassed = true;
+                        }
+
+                    }
+                }
+                dataReader.Close();
+            }
+            else
+            {
+                extendedcheckpassed = true;
+            }
+
+            if (extendedcheckpassed == true)
+            {
+                row["Result"] = "Pass";
+            }
+            table.Rows.Add(row);
+
+
+
+            //////////////// End of tests //////////////////
 
             // Close connection to DB.
             try

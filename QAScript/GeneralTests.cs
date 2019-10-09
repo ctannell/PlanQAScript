@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Data;
+using System.Windows;
 using VMS.TPS.Common.Model.API;
 
 namespace QAScript
@@ -29,15 +30,23 @@ namespace QAScript
                 msg += "\n\nPrimary reference point \"" + plan.PrimaryReferencePoint.Id + "\" does not have the same name as the plan (\"" + plan.Id + "\").";
                 row["Result"] = "Fail";
             }
+            else
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
-            // Check the the precribed isodose line is 100.
+            // Check that the precribed isodose line is 100.
             row = table.NewRow();
             row["Item"] = "The precribed isodose line is 100";
             if (plan.PrescribedPercentage != 1)
             {
                 msg += "\n\nThe prescribed percentage is not 100%. Please make sure this is intentional.";
                 row["Result"] = "Fail";
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -71,30 +80,39 @@ namespace QAScript
                 msg += "\n\nOne or more of the beams have different isocenters.";
                 row["Result"] = "Fail";
             }
+            else
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Check that the machine is the same for all beams
             row = table.NewRow();
             row["Item"] = "The machine name is the same for all beams";
             var Machine = plan.Beams.First().ExternalBeam.Id;
-            var MachineMatchIssue = 0;
+            bool MachineMatchIssue = false;
             foreach (Beam scan in listofbeams)
             {
                 if (scan.ExternalBeam.Id != Machine)
                 {
-                    MachineMatchIssue = 1;
+                    MachineMatchIssue = true;
                 }
             }
-            if (MachineMatchIssue == 1)
+            if (MachineMatchIssue == true)
             {
                 msg += "\n\nThe machine is not the same for all beams.";
                 row["Result"] = "Fail";
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
             // Check that the jaw setting of each beam is at least 3 cm in x and y for all control points.
             row = table.NewRow();
             row["Item"] = "The jaw setting of each beam is at least 3 cm in x and y for all control points";
+            bool foundsmallFS = false;
             foreach (Beam scan in listofbeams)
             {
                 double SmallestFS = 400;
@@ -120,17 +138,26 @@ namespace QAScript
                 if (SmallestFS < 30)
                 {
                     msg += "\n\nField \"" + scan.Id + "\"contains an X or Y jaw setting smaller than 3 cm (at least one control point has a jaw width of " + SmallestFS / 10 + " cm).";
-                    row["Result"] = "Fail";
+                    foundsmallFS = true;
                 }
+            }
+            if (foundsmallFS == false)
+            {
+                row["Result"] = "Pass";
+            }
+            else
+            {
+                row["Result"] = "Fail";
             }
             table.Rows.Add(row);
 
             // Check that the X Jaw setting is no greater than 20 cm for a beam of type "ARC" or "SRS ARC".
             row = table.NewRow();
             row["Item"] = "The X Jaw setting is no greater than 20 cm for a beam of type \"ARC\" or \"SRS ARC\"";
-            int FoundXFSTooBig = 0;
+            bool FoundXFSTooBig = false;
             foreach (Beam scan in listofbeams)
             {
+                bool FoundCPTooBig = false;
                 double XFS = 0;
                 double YFS = 0;
                 if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
@@ -145,26 +172,34 @@ namespace QAScript
                         GetFieldSize(X1, X2, Y1, Y2, out XFS, out YFS);
                         if (XFS > 200) //FS is in mm.
                         {
-                            FoundXFSTooBig = 1;
+                            FoundCPTooBig = true;
                         }
                     }
                 }
 
-                if (FoundXFSTooBig == 1)
+                if (FoundCPTooBig == true)
                 {
                     msg += "\n\nField \"" + scan.Id.ToString() + "\" has an X jaw setting greater than 20 cm.";
-                    row["Result"] = "Fail";
-                    FoundXFSTooBig = 0;
+                    FoundXFSTooBig = true;
                 }
+            }
+            if (FoundXFSTooBig == false)
+            {
+                row["Result"] = "Pass";
+            }
+            else
+            {
+                row["Result"] = "Fail";
             }
             table.Rows.Add(row);
 
             // For Fields of type "ARC" and "SRS ARC", check that collimator angle is not zero
             row = table.NewRow();
             row["Item"] = "For Fields of type \"ARC\" and \"SRS ARC\", check that collimator angle is not zero";
+            bool BadColAngle = false;
             foreach (Beam scan in listofbeams)
             {
-                int BadColAngle = 0;
+                bool BadColAngleinBeam = false;
                 if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                 {
                     var listofCP = scan.ControlPoints;
@@ -172,22 +207,30 @@ namespace QAScript
                     {
                         if (cp.CollimatorAngle == 0)
                         {
-                            BadColAngle = 1;
+                            BadColAngle = true;
+                            BadColAngleinBeam = true;
                         }
                     }
                 }
-                if (BadColAngle == 1)
+                if (BadColAngleinBeam == true)
                 {
                     msg += "\n\nField \"" + scan.Id.ToString() + "\" is an arc and has a collimator setting of zero.";
-                    row["Result"] = "Fail";
-                    BadColAngle = 0;
                 }
+            }
+            if (BadColAngle == false)
+            {
+                row["Result"] = "Pass";
+            }
+            else
+            {
+                row["Result"] = "Fail";
             }
             table.Rows.Add(row);
 
             // Check that SU fields have a 15x15 cm2 jaw setting and CBCT fields have a 10x10 cm2 jaw setting
             row = table.NewRow();
             row["Item"] = "Check that setup fields have a 15x15 cm2 jaw setting and the CBCT field has a 10x10 cm2 jaw setting";
+            bool foundbadSetupFS = false;
             foreach (Beam scan in listofbeams)
             {
                 if (scan.IsSetupField == true)
@@ -204,7 +247,7 @@ namespace QAScript
                         if (XFS != 100 || YFS != 100)
                         {
                             msg += "\n\nThe CBCT setup field does not have a jaw setting of 10x10 cm2.";
-                            row["Result"] = "Fail";
+                            foundbadSetupFS = true;
                         }
                     }
                     if (!scan.Id.ToLower().Contains("cbct"))
@@ -219,40 +262,57 @@ namespace QAScript
                         if (XFS != 150 || YFS != 150)
                         {
                             msg += "\n\nThe setup field \"" + scan.Id + "\" does not have a jaw setting of 15x15 cm2.";
-                            row["Result"] = "Fail";
+                            foundbadSetupFS = true;
                         }
                     }
 
                 }
             }
+            if (foundbadSetupFS == false)
+            {
+                row["Result"] = "Pass";
+            }
+            else
+            {
+                row["Result"] = "Fail";
+            }
             table.Rows.Add(row);
 
             // Check to make sure normalization is appplied
             row = table.NewRow();
-            row["Item"] = "Check that some normalization is appplied to 3D plans and that RapiArc plans have the usual \"100% of the dose covers 95% of Target Volume\"";
-            int hasarc = 0;
+            row["Item"] = "Check that some normalization is appplied to 3D plans and that RapidArc plans have the usual \"100% of the dose covers 95% of Target Volume\"";
+            bool OddorNoNormalization = false;
+            bool hasarc = false;
             foreach (Beam scan in listofbeams)
             {
                 if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                 {
-                    hasarc = 1;
+                    hasarc = true;
                 }
             }
-            if (hasarc == 1)
+            if (hasarc == true)
             {
                 if (plan.PlanNormalizationMethod != "100.00% covers 95.00% of Target Volume")
                 {
                     msg += "\n\nArc technique detected, but the normalization is not set to the usual \"100.00% covers 95.00% of Target Volume\". Was this intentional?";
-                    row["Result"] = "Fail";
+                    OddorNoNormalization = true;
                 }
             }
-            if (hasarc == 0)
+            if (hasarc == false)
             {
                 if (plan.PlanNormalizationMethod == "No plan normalization")
                 {
-                    msg += "\n\nPlan is not normalized.";
-                    row["Result"] = "Fail";
+                    msg += "\n\nThe plan is not normalized.";
+                    OddorNoNormalization = true;
                 }
+            }
+            if (OddorNoNormalization == true)
+            {
+                row["Result"] = "Fail";
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -268,11 +328,11 @@ namespace QAScript
                 {
                     if (scan.GantryDirection.ToString() == "Clockwise")
                     {
-                        CW = CW + 1;
+                        CW += 1;
                     }
                     if (scan.GantryDirection.ToString() == "CounterClockwise")
                     {
-                        CCW = CCW + 1;
+                        CCW += 1;
                     }
                 }
             }
@@ -282,11 +342,16 @@ namespace QAScript
                 msg += "\n\nThe difference in the number of clockwise arcs compared to counterclockwise arcs is high. The treatment time may not be optimal.";
                 row["Result"] = "Fail";
             }
+            else
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Check that SU images have the correct gantry angle based on field name and patient orientation.
             row = table.NewRow();
             row["Item"] = "Check that SU images have the correct gantry angle based on field name and patient orientation. It checks for \"ANT\", \"POST\", \"LT\", \"RT\" and \"CBCT\" then looks for the correct gantry angle. It also checks that the collimator angle is zero.";
+            bool foundbadSUgantry = false;
             foreach (Beam scan in listofbeams)
             {
                 if (scan.IsSetupField == true)
@@ -294,14 +359,14 @@ namespace QAScript
                     if (scan.ControlPoints.First().CollimatorAngle != 0)
                     {
                         msg += "\n\nFor the setup field \"" + scan.Id + "\", the colimator angle is not zero.";
-                        row["Result"] = "Fail";
+                        foundbadSUgantry = true;
                     }
                     if (scan.Id.ToLower().Contains("cbct"))
                     {
                         if (scan.ControlPoints.First().GantryAngle != 0)
                         {
                             msg += "\n\nFor the setup field \"" + scan.Id + "\", the Gantry angle is not zero.";
-                            row["Result"] = "Fail";
+                            foundbadSUgantry = true;
                         }
                     }
 
@@ -313,7 +378,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 0)
                             {
                                 msg += "\n\nFor the setup field \"" + scan.Id + "\", the Gantry angle is not zero.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("rt"))
@@ -321,7 +386,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 270)
                             {
                                 msg += "\n\nFor the RT setup field \"" + scan.Id + "\", the Gantry angle is not 270.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("lt"))
@@ -329,7 +394,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 90)
                             {
                                 msg += "\n\nFor the LT setup field \"" + scan.Id + "\", the Gantry angle is not 90.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
 
@@ -342,7 +407,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 0)
                             {
                                 msg += "\n\nFor the setup field \"" + scan.Id + "\", the Gantry angle is not zero.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("rt"))
@@ -350,7 +415,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 90)
                             {
                                 msg += "\n\nFor the RT setup field \"" + scan.Id + "\", the Gantry angle is not 90.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("lt"))
@@ -358,7 +423,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 270)
                             {
                                 msg += "\n\nFor the LT setup field \"" + scan.Id + "\", the Gantry angle is not 270.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
 
@@ -370,14 +435,14 @@ namespace QAScript
                         if (scan.Id.ToLower().Contains("ant"))
                         {
                             msg += "\n\nPatient is prone, did you mean to lable the 'ANT Setup' field 'POST Setup' instead?";
-                            row["Result"] = "Fail";
+                            foundbadSUgantry = true;
                         }
                         if (scan.Id.ToLower().Contains("post"))
                         {
                             if (scan.ControlPoints.First().GantryAngle != 0)
                             {
                                 msg += "\n\nFor the setup field \"" + scan.Id + "\", the Gantry angle is not zero.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("rt"))
@@ -385,7 +450,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 90)
                             {
                                 msg += "\n\nFor the RT setup field \"" + scan.Id + "\", the Gantry angle is not 90.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("lt"))
@@ -393,7 +458,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 270)
                             {
                                 msg += "\n\nFor the LT setup field \"" + scan.Id + "\", the Gantry angle is not 270.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
 
@@ -404,14 +469,14 @@ namespace QAScript
                         if (scan.Id.ToLower().Contains("ant"))
                         {
                             msg += "\n\nPatient is prone, did you mean to lable the 'ANT Setup' field 'POST Setup' instead?";
-                            row["Result"] = "Fail";
+                            foundbadSUgantry = true;
                         }
                         if (scan.Id.ToLower().Contains("post"))
                         {
                             if (scan.ControlPoints.First().GantryAngle != 0)
                             {
                                 msg += "\n\nFor the setup field \"" + scan.Id + "\", the Gantry angle is not zero.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("rt"))
@@ -419,7 +484,7 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 270)
                             {
                                 msg += "\n\nFor the RT setup field \"" + scan.Id + "\", the Gantry angle is not 270.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                         if (scan.Id.ToLower().Contains("lt"))
@@ -427,17 +492,26 @@ namespace QAScript
                             if (scan.ControlPoints.First().GantryAngle != 90)
                             {
                                 msg += "\n\nFor the LT setup field \"" + scan.Id + "\", the Gantry angle is not 90.";
-                                row["Result"] = "Fail";
+                                foundbadSUgantry = true;
                             }
                         }
                     }
                 }
+            }
+            if (foundbadSUgantry == true)
+            {
+                row["Result"] = "Fail";
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
             // Check that field names begin with the correct numbers based on the name of the plan
             row = table.NewRow();
             row["Item"] = "The field names begin with the correct numbers based on the name of the plan(\"1.1\" for field 1, plan 1 etc.)";
+            bool foundbadplannumber = false;
             if (plan.Id.StartsWith("FP1")) //FP stands for final plan
             {
                 foreach (Beam scan in listofbeams)
@@ -447,7 +521,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("1.") == false)
                         {
                             msg += "\n\nPlan FP1 expects fields to start with '1.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -461,7 +535,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("2.") == false)
                         {
                             msg += "\n\nPlan FP2 expects fields to start with '2.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -475,7 +549,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("3.") == false)
                         {
                             msg += "\n\nPlan FP3 expects fields to start with '3.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -489,7 +563,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("4.") == false)
                         {
                             msg += "\n\nPlan FP4 expects fields to start with '4.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -503,7 +577,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("5.") == false)
                         {
                             msg += "\n\nPlan FP5 expects fields to start with '5.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -517,7 +591,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M1-1.") == false)
                         {
                             msg += "\n\nPlan M1P1 expects fields to start with 'M1-1.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -531,7 +605,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M2-1.") == false)
                         {
                             msg += "\n\nPlan M2P1 expects fields to start with 'M2-1.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -545,7 +619,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M3-1.") == false)
                         {
                             msg += "\n\nPlan M3P1 expects fields to start with 'M3-1.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -559,7 +633,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M1-2.") == false)
                         {
                             msg += "\n\nPlan M1P2 expects fields to start with 'M1-2.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -573,7 +647,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M2-2.") == false)
                         {
                             msg += "\n\nPlan M2P2 expects fields to start with 'M2-2.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -587,7 +661,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M3-2.") == false)
                         {
                             msg += "\n\nPlan M3P2 expects fields to start with 'M3-2.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -601,7 +675,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M1-3.") == false)
                         {
                             msg += "\n\nPlan M1P3 expects fields to start with 'M1-3.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -615,7 +689,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M2-3.") == false)
                         {
                             msg += "\n\nPlan M2P3 expects fields to start with 'M2-3.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -629,7 +703,7 @@ namespace QAScript
                         if (scan.Id.StartsWith("M1-4.") == false)
                         {
                             msg += "\n\nPlan M1P4 expects fields to start with 'M1-4.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
@@ -643,16 +717,25 @@ namespace QAScript
                         if (scan.Id.StartsWith("M1-5.") == false)
                         {
                             msg += "\n\nPlan M1P5 expects fields to start with 'M1-5.'";
-                            row["Result"] = "Fail";
+                            foundbadplannumber = true;
                         }
                     }
                 }
+            }
+            if (foundbadplannumber == true)
+            {
+                row["Result"] = "Fail";
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
             // Check names of fields (LAO/RAO etc) against gantry angles
             row = table.NewRow();
             row["Item"] = "Basic checks on field naming: i) Arcs have \"ARC\" in the name ii)Static fields have orientation \"LT\", \"ANT\", \"RAO\" etc. included. Checks for all four patient orientations.";
+            bool fieldcheckok = false;
             foreach (Beam scan in listofbeams)
             {
                 if (scan.IsSetupField == false)
@@ -663,6 +746,10 @@ namespace QAScript
                         {
                             msg += "\n\nFields of type \"ARC\" (\"" + scan.Id + "\") should contain \"ARC\" in the field name.";
                             row["Result"] = "Fail";
+                        }
+                        else
+                        {
+                            fieldcheckok = true;
                         }
                     }
                     if (scan.Technique.Id.Equals("STATIC"))
@@ -677,7 +764,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lao"))
+                            else if (scan.Id.ToLower().Contains("lao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
@@ -685,7 +772,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lt"))
+                            else if (scan.Id.ToLower().Contains("lt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
@@ -693,7 +780,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lpo"))
+                            else if (scan.Id.ToLower().Contains("lpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
@@ -701,7 +788,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("post"))
+                            else if (scan.Id.ToLower().Contains("post"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
@@ -709,7 +796,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rpo"))
+                            else if (scan.Id.ToLower().Contains("rpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
@@ -717,7 +804,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rt"))
+                            else if (scan.Id.ToLower().Contains("rt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
@@ -725,13 +812,17 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rao"))
+                            else if (scan.Id.ToLower().Contains("rao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
                                     row["Result"] = "Fail";
                                 }
+                            }
+                            else
+                            {
+                                fieldcheckok = true;
                             }
                         }
                         if (plan.TreatmentOrientation.ToString() == "FeetFirstSupine")
@@ -744,7 +835,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rao"))
+                            else if (scan.Id.ToLower().Contains("rao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
@@ -752,7 +843,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rt"))
+                            else if (scan.Id.ToLower().Contains("rt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
@@ -760,7 +851,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rpo"))
+                            else if (scan.Id.ToLower().Contains("rpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
@@ -768,7 +859,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("post"))
+                            else if (scan.Id.ToLower().Contains("post"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
@@ -776,7 +867,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lpo"))
+                            else if (scan.Id.ToLower().Contains("lpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
@@ -784,7 +875,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lt"))
+                            else if (scan.Id.ToLower().Contains("lt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
@@ -792,13 +883,17 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lao"))
+                            else if (scan.Id.ToLower().Contains("lao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
                                     row["Result"] = "Fail";
                                 }
+                            }
+                            else
+                            {
+                                fieldcheckok = true;
                             }
                         }
                         if (plan.TreatmentOrientation.ToString() == "HeadFirstProne")
@@ -811,7 +906,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rpo"))
+                            else if (scan.Id.ToLower().Contains("rpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
@@ -819,7 +914,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rt"))
+                            else if (scan.Id.ToLower().Contains("rt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
@@ -827,7 +922,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rao"))
+                            else if (scan.Id.ToLower().Contains("rao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
@@ -835,7 +930,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("ant"))
+                            else if (scan.Id.ToLower().Contains("ant"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
@@ -843,7 +938,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lao"))
+                            else if (scan.Id.ToLower().Contains("lao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
@@ -851,7 +946,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lt"))
+                            else if (scan.Id.ToLower().Contains("lt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
@@ -859,13 +954,17 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lpo"))
+                            else if (scan.Id.ToLower().Contains("lpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
                                     row["Result"] = "Fail";
                                 }
+                            }
+                            else
+                            {
+                                fieldcheckok = true;
                             }
                         }
                         if (plan.TreatmentOrientation.ToString() == "FeetFirstProne")
@@ -878,7 +977,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lpo"))
+                            else if (scan.Id.ToLower().Contains("lpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
@@ -886,7 +985,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lt"))
+                            else if (scan.Id.ToLower().Contains("lt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
@@ -894,7 +993,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("lao"))
+                            else if (scan.Id.ToLower().Contains("lao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
@@ -902,7 +1001,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("ant"))
+                            else if (scan.Id.ToLower().Contains("ant"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
@@ -910,7 +1009,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rao"))
+                            else if (scan.Id.ToLower().Contains("rao"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
@@ -918,7 +1017,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rt"))
+                            else if (scan.Id.ToLower().Contains("rt"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
@@ -926,7 +1025,7 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
-                            if (scan.Id.ToLower().Contains("rpo"))
+                            else if (scan.Id.ToLower().Contains("rpo"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
@@ -934,10 +1033,18 @@ namespace QAScript
                                     row["Result"] = "Fail";
                                 }
                             }
+                            else
+                            {
+                                fieldcheckok = true;
+                            }
                         }
                     }
 
                 }
+            }
+            if (fieldcheckok == true)
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -952,6 +1059,10 @@ namespace QAScript
                     msg += "\n\nHeterogeneity corrections are OFF.";
                     row["Result"] = "Fail";
                 }
+                else
+                {
+                    row["Result"] = "Pass";
+                }
             }
             table.Rows.Add(row);
 
@@ -965,6 +1076,10 @@ namespace QAScript
                     msg += "\n\nField \"" + scan.Id + "\" has fewer than 5 MU.";
                     row["Result"] = "Fail";
                 }
+                else
+                {
+                    row["Result"] = "Pass";
+                }
             }
             table.Rows.Add(row);
 
@@ -975,6 +1090,10 @@ namespace QAScript
             {
                 msg += "\n\nThe photon calculation model is expected to be: AAA_11031, but is instead: " + plan.PhotonCalculationModel;
                 row["Result"] = "Fail";
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -998,12 +1117,21 @@ namespace QAScript
                     msg += "\n\nThe electron calculation model is not set to: \"EMC_11031\"";
                     row["Result"] = "Fail";
                 }
+                else
+                {
+                    row["Result"] = "Pass";
+                }
+            }
+            else
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
             //Check for couch structure
             row = table.NewRow();
             row["Item"] = "The couch structure is correct for the selected treatment unit and has the correct HU values";
+            int couchok = 2;
             if (Machine.Contains("TB"))
             {
                 var foundcouch = false;
@@ -1021,6 +1149,7 @@ namespace QAScript
                             {
                                 msg += "\n\nVarian couch structure found, but the interior HU is set to " + huValue + " when -960 was expected.";
                                 row["Result"] = "Fail";
+                                couchok = 0;
                             }
                         }
                         if (scan.Id.ToLower().Contains("surface"))
@@ -1029,6 +1158,7 @@ namespace QAScript
                             {
                                 msg += "\n\nVarian couch structure found, but the exterior HU is set to " + huValue + " when -700 was expected.";
                                 row["Result"] = "Fail";
+                                couchok = 0;
                             }
                         }
                     }
@@ -1042,11 +1172,17 @@ namespace QAScript
                 {
                     msg += "\n\nVarian IGRT couch structure missing.";
                     row["Result"] = "Fail";
+                    couchok = 0;
                 }
                 if (wrongcouch == true)
                 {
                     msg += "\n\nWrong couch structure detected.";
                     row["Result"] = "Fail";
+                    couchok = 0;
+                }
+                if (couchok == 2)
+                {
+                    row["Result"] = "Pass";
                 }
             }
 
@@ -1067,6 +1203,7 @@ namespace QAScript
                             {
                                 msg += "\n\nBrainLAB couch structure found, but the interior HU is set to " + huValue + " when -850 was expected.";
                                 row["Result"] = "Fail";
+                                couchok = 0;
                             }
                         }
                         if (scan.Id.ToLower().Contains("surface"))
@@ -1075,6 +1212,7 @@ namespace QAScript
                             {
                                 msg += "\n\nBrainLAB couch structure found, but the exterior HU is set to " + huValue + " when -300 was expected.";
                                 row["Result"] = "Fail";
+                                couchok = 0;
                             }
                         }
                     }
@@ -1087,12 +1225,18 @@ namespace QAScript
                 if (foundcouch == false)
                 {
                     msg += "\n\nBrainLAB couch structure missing, make sure patient is in the \"U-frame\" mask.";
-                    row["Result"] = "Fail";
+                    //row["Result"] = "Fail"; //We don't want this to say fail because it can sometimes be correct. 
+                    couchok = 1;
                 }
                 if (wrongcouch == true)
                 {
                     msg += "\n\nWrong couch structure detected.";
                     row["Result"] = "Fail";
+                    couchok = 0;
+                }
+                if (couchok == 2)
+                {
+                    row["Result"] = "Pass";
                 }
             }
             table.Rows.Add(row);
@@ -1105,12 +1249,16 @@ namespace QAScript
                 msg += "\n\nCT name and structure set name do not match.";
                 row["Result"] = "Fail";
             }
+            else
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
-            //Checks grid size is 0.1 cm for lung SBRT (Dose per fx > 8 and FS < 10 cm with "lung" in plan name) and brain cases.
+            //Checks grid size is 0.1 cm for lung SBRT (Dose per fx > 9 and FS < 10 cm with "lung" in plan name) and brain cases.
             row = table.NewRow();
             row["Item"] = "The calculation grid size is 0.1 cm for lung SBRT (Dose per fx > 9 and FS < 10 cm with \"lung\" in plan name) and brain cases";
-
+            int gridsizeok = 2;
             var foundoptics = false; // Brain (optic structures found in structure set)
             var listofstructures2 = plan.StructureSet.Structures;
             foreach (Structure scan in listofstructures2)
@@ -1129,6 +1277,7 @@ namespace QAScript
                     {
                         msg += "\n\nThe plan contains optic structures, but the calculation grid size is not 0.1 cm. Is this intentional?";
                         row["Result"] = "Fail";
+                        gridsizeok = 0;
                     }
                 }
             }
@@ -1170,10 +1319,15 @@ namespace QAScript
                             {
                                 msg += "\n\nThe plan might be a lung SBRT case but the calculation grid size is not 0.1 cm. Is this intentional?";
                                 row["Result"] = "Fail";
+                                gridsizeok = 0;
                             }
                         }
                     }
                 }
+            }
+            if (gridsizeok == 2)
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -1200,11 +1354,16 @@ namespace QAScript
                 msg += "\n\nThe tray ID is not set in one or more electron block properties";
                 row["Result"] = "Fail";
             }
+            else
+            {
+                row["Result"] = "Pass";
+            }
             table.Rows.Add(row);
 
             // Test the grid size for electron plans. If it has 6 MeV then it should be 0.1 cm. Otherwise 0.15 cm.
             row = table.NewRow();
             row["Item"] = "The calculation grid size for electron plans is  0.1 cm if the plan has 6 MeV otherwise it should be 0.15 cm.";
+            int egridsizeok = 2;
 
             var foundelectrons = 0;
             var found6MeV = 0;
@@ -1229,6 +1388,7 @@ namespace QAScript
                     {
                         msg += "\n\nThe plan is an electron plan with a 6 MeV beam. The calculation grid size should be 0.1 cm. It is currently set to " + value + " cm.";
                         row["Result"] = "Fail";
+                        egridsizeok = 0;
                     }
                 }
             }
@@ -1241,8 +1401,13 @@ namespace QAScript
                     {
                         msg += "\n\nThe plan is an electron plan with only energies greater than 6 MeV. The calculation grid size should be 0.15 cm. It is currently set to " + value + " cm.";
                         row["Result"] = "Fail";
+                        egridsizeok = 0;
                     }
                 }
+            }
+            if (egridsizeok == 2)
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
@@ -1252,22 +1417,87 @@ namespace QAScript
 
             if (plan.TargetVolumeID != "")
             {
-                Structure structure = plan.StructureSet.Structures.Where(s => s.Id == plan.TargetVolumeID).Single();
-                if (structure.Volume < 4.18879) // This is the volume of a 2 cm wide sphere in cc.
+                bool foundarc = false;
+                foreach (Beam scan in listofbeams)
                 {
-                    double equivdiam = 2 * Math.Pow((3 * structure.Volume / (4 * Math.PI)), 1 / 3.0);
-                    msg += "\n\nThe size of the primary target is quite small (" + structure.Volume.ToString("0.0") + " cc). This would have an eqivalent diameter sphere of " +
-                        equivdiam.ToString("0.0") + " cm which is below the 2 cm limit where we might start to see dose calculation accuracy issues. Please consult physics.";
+                    if (scan.Technique.Id.Equals("ARC"))
+                    {
+                        foundarc = true;
+                    }
                 }
+                if (foundarc == true)
+                {
+                    Structure structure = plan.StructureSet.Structures.Where(s => s.Id == plan.TargetVolumeID).Single();
+                    if (structure.Volume < 4.18879) // This is the volume of a 2 cm wide sphere in cc.
+                    {
+                        double equivdiam = 2 * Math.Pow((3 * structure.Volume / (4 * Math.PI)), 1 / 3.0);
+                        msg += "\n\nThe size of the primary target is quite small (" + structure.Volume.ToString("0.0") + " cc). This would have an eqivalent diameter sphere of " +
+                            equivdiam.ToString("0.0") + " cm which is below the ~2 cm limit where we might start to see dose calculation accuracy issues. Please consult physics.";
+                        row["Result"] = "Fail";
+                    }
+                    else
+                    {
+                        row["Result"] = "Pass";
+                    }
+                }
+                else
+                {
+                    row["Result"] = "Pass";
+                }
+
+            }
+            else
+            {
+                row["Result"] = "Pass";
+            }
+            table.Rows.Add(row);
+
+            //Checks that for any couch angles that are not zero, that the angle is in the field name in the form: "Txyz" where xyz is the angle. 
+            row = table.NewRow();
+            row["Item"] = "Non zero couch angles have the angle included in the field name.";
+            int noncoplanarnamesok = 2;
+            foreach (Beam scan in listofbeams)
+            {
+
+                double couchangle = scan.ControlPoints.First().PatientSupportAngle;
+                string eclipsecouchangle = "";
+                string stringname = "";
+                if (couchangle != 0)
+                {
+                    if (couchangle < 180)
+                    {
+                        eclipsecouchangle = (360 - couchangle).ToString();
+                    }
+                    else if (couchangle > 180)
+                    {
+                        eclipsecouchangle = (360 - couchangle).ToString();
+                    }
+                    stringname = "T" + eclipsecouchangle; // This should be included in the field name. Like "1.1 ARC1 T270" if the table is at 270 degrees.
+
+                    if (!scan.Id.Contains(stringname))
+                    {
+                        msg += "\n\nField: \"" + scan.Id + "\", which has a table angle of " + eclipsecouchangle + " degrees, does not contain " + stringname + " in the field name.";
+                        row["Result"] = "Fail";
+                        noncoplanarnamesok = 0;
+                    }
+                }
+            }
+            if (noncoplanarnamesok == 2)
+            {
+                row["Result"] = "Pass";
             }
             table.Rows.Add(row);
 
 
+            
 
+                
+
+            
+            /////////////////////////////////////////////////////////////////////////////
             // Write back current message and datatable
             SomeProperties.MsgString = msg;
             SomeProperties.MsgDataTable = table;
-
         }
 
         // Some method to get the field size.
