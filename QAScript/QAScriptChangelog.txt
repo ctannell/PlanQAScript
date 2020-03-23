@@ -1,5 +1,20 @@
 QA Script Changelog
 
+v2.1.1 (19 Mar 2020)
+- Changed dose resolution checks to use the dose.Xres property instead of the calculation options property.
+- When looking for RadCalc points, it just searches for "rad" instead of "radc".
+- Excludes sc+ax plans when checking the "ant" and "post" field naming
+- Added check to complain if a radcal point is not found for plans that have fields of type: "Arc".
+
+v2.1.0 (9 Mar 2020)
+- Upgrade to Eclipse v15 and fixed compatibility.
+
+v2.0.4
+- Added a treatment field check to make sure that the dose rate is set to the max value.
+- Fixed the McGill SC+AX logic for the post fields and the extended option. Also, now only applies at non-setup fields.
+- Fixed the field naming logic so that the details window didn't keep showing unknown for tests that passed.
+- Modified the check for table angles in the field names to exclude electron fields
+
 v2.0.3
 - Added a check for SC+AX fields to make sure the "extended" option is delected for post fields
 - If the couch angle is not zero, then the angle should be contained in the field name in the form “Txyz” where xyz is the angle
@@ -15,8 +30,5 @@ v2.0
 - GUI now has a details button that shows a window listing all the tests performed by the script
 
 v1.4.5
--Added check to find electron fields before checking electron beam model.
--Added "SRS ARC" to techniques that involve checking normalization method is 100% to 95% of the volume.
-
-
-
+- Added check to find electron fields before checking electron beam model.
+- Added "SRS ARC" to techniques that involve checking normalization method is 100% to 95% of the volume.

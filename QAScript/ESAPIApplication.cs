@@ -14,7 +14,7 @@ namespace QAScript
         // private to prevent direct instantiation.
         private ESAPIApplication()
         {
-            Context = Application.CreateApplication("aria_username", "password");
+            Context = Application.CreateApplication();
         }
 
         public Application Context { get; private set; }

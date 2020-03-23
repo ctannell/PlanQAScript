@@ -39,7 +39,7 @@ namespace QAScript
             // Check that the precribed isodose line is 100.
             row = table.NewRow();
             row["Item"] = "The precribed isodose line is 100";
-            if (plan.PrescribedPercentage != 1)
+            if (plan.TreatmentPercentage != 1)
             {
                 msg += "\n\nThe prescribed percentage is not 100%. Please make sure this is intentional.";
                 row["Result"] = "Fail";
@@ -89,11 +89,12 @@ namespace QAScript
             // Check that the machine is the same for all beams
             row = table.NewRow();
             row["Item"] = "The machine name is the same for all beams";
-            var Machine = plan.Beams.First().ExternalBeam.Id;
+            // var Machine = plan.Beams.First().ExternalBeam.Id; //v11
+            string Machine = plan.Beams.First().TreatmentUnit.Id; //v15
             bool MachineMatchIssue = false;
             foreach (Beam scan in listofbeams)
             {
-                if (scan.ExternalBeam.Id != Machine)
+                if (scan.TreatmentUnit.Id != Machine)
                 {
                     MachineMatchIssue = true;
                 }
@@ -358,7 +359,7 @@ namespace QAScript
                 {
                     if (scan.ControlPoints.First().CollimatorAngle != 0)
                     {
-                        msg += "\n\nFor the setup field \"" + scan.Id + "\", the colimator angle is not zero.";
+                        msg += "\n\nFor the setup field \"" + scan.Id + "\", the collimator angle is not zero.";
                         foundbadSUgantry = true;
                     }
                     if (scan.Id.ToLower().Contains("cbct"))
@@ -735,21 +736,18 @@ namespace QAScript
             // Check names of fields (LAO/RAO etc) against gantry angles
             row = table.NewRow();
             row["Item"] = "Basic checks on field naming: i) Arcs have \"ARC\" in the name ii)Static fields have orientation \"LT\", \"ANT\", \"RAO\" etc. included. Checks for all four patient orientations.";
-            bool fieldcheckok = false;
+            bool foundfieldissue = false;
             foreach (Beam scan in listofbeams)
             {
                 if (scan.IsSetupField == false)
                 {
+
                     if (scan.Technique.Id.Equals("ARC") || scan.Technique.Id.Equals("SRS ARC"))
                     {
                         if (scan.Id.ToLower().Contains("arc") == false)
                         {
                             msg += "\n\nFields of type \"ARC\" (\"" + scan.Id + "\") should contain \"ARC\" in the field name.";
-                            row["Result"] = "Fail";
-                        }
-                        else
-                        {
-                            fieldcheckok = true;
+                            foundfieldissue = true;
                         }
                     }
                     if (scan.Technique.Id.Equals("STATIC"))
@@ -758,10 +756,10 @@ namespace QAScript
                         {
                             if (scan.Id.ToLower().Contains("ant"))
                             {
-                                if (scan.ControlPoints.First().GantryAngle != 0)
+                                if (scan.ControlPoints.First().GantryAngle != 0 && !plan.Id.ToLower().Contains("sc+ax"))
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry of zero.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lao"))
@@ -769,7 +767,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than zero, but less than 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lt"))
@@ -777,7 +775,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lpo"))
@@ -785,15 +783,15 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 90, but less than 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
-                            else if (scan.Id.ToLower().Contains("post"))
+                            else if (scan.Id.ToLower().Contains("post") && !plan.Id.ToLower().Contains("sc+ax"))
                             {
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rpo"))
@@ -801,7 +799,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 180, but less than 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rt"))
@@ -809,7 +807,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rao"))
@@ -817,14 +815,11 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
-                            else
-                            {
-                                fieldcheckok = true;
-                            }
                         }
+
                         if (plan.TreatmentOrientation.ToString() == "FeetFirstSupine")
                         {
                             if (scan.Id.ToLower().Contains("ant"))
@@ -832,7 +827,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 0)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry of zero.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rao"))
@@ -840,7 +835,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than zero, but less than 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rt"))
@@ -848,7 +843,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rpo"))
@@ -856,7 +851,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 90, but less than 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("post"))
@@ -864,7 +859,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lpo"))
@@ -872,7 +867,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 180, but less than 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lt"))
@@ -880,7 +875,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lao"))
@@ -888,14 +883,11 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
-                            else
-                            {
-                                fieldcheckok = true;
-                            }
                         }
+
                         if (plan.TreatmentOrientation.ToString() == "HeadFirstProne")
                         {
                             if (scan.Id.ToLower().Contains("post"))
@@ -903,7 +895,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 0)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry of zero.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rpo"))
@@ -911,7 +903,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than zero, but less than 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rt"))
@@ -919,7 +911,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rao"))
@@ -927,7 +919,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 90, but less than 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("ant"))
@@ -935,7 +927,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lao"))
@@ -943,7 +935,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 180, but less than 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lt"))
@@ -951,7 +943,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lpo"))
@@ -959,14 +951,11 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
-                            else
-                            {
-                                fieldcheckok = true;
-                            }
                         }
+
                         if (plan.TreatmentOrientation.ToString() == "FeetFirstProne")
                         {
                             if (scan.Id.ToLower().Contains("post"))
@@ -974,7 +963,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 0)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry of zero.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lpo"))
@@ -982,7 +971,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 0 || scan.ControlPoints.First().GantryAngle > 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than zero, but less than 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lt"))
@@ -990,7 +979,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 90)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 90.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("lao"))
@@ -998,7 +987,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 90 || scan.ControlPoints.First().GantryAngle > 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 90, but less than 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("ant"))
@@ -1006,7 +995,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 180)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 180.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rao"))
@@ -1014,7 +1003,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 180 || scan.ControlPoints.First().GantryAngle > 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 180, but less than 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rt"))
@@ -1022,7 +1011,7 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle != 270)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry angle of 270.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
                             }
                             else if (scan.Id.ToLower().Contains("rpo"))
@@ -1030,19 +1019,19 @@ namespace QAScript
                                 if (scan.ControlPoints.First().GantryAngle < 270 || scan.ControlPoints.First().GantryAngle > 360)
                                 {
                                     msg += "\n\nField: \"" + scan.Id + "\" does not have a gantry greater than 270, but less than 360.";
-                                    row["Result"] = "Fail";
+                                    foundfieldissue = true;
                                 }
-                            }
-                            else
-                            {
-                                fieldcheckok = true;
                             }
                         }
                     }
 
                 }
             }
-            if (fieldcheckok == true)
+            if (foundfieldissue == true)
+            {
+                row["Result"] = "Fail";
+            }
+            else if (foundfieldissue == false)
             {
                 row["Result"] = "Pass";
             }
@@ -1085,10 +1074,10 @@ namespace QAScript
 
             // Check AAA version
             row = table.NewRow();
-            row["Item"] = "For photon plans, the dose calculation algorithm is \"AAA_11031\"";
-            if (plan.PhotonCalculationModel != "AAA_11031")
+            row["Item"] = "For photon plans, the dose calculation algorithm is \"AAA_15606\"";
+            if (plan.PhotonCalculationModel != "AAA_15606")
             {
-                msg += "\n\nThe photon calculation model is expected to be: AAA_11031, but is instead: " + plan.PhotonCalculationModel;
+                msg += "\n\nThe photon calculation model is expected to be: AAA_15606, but is instead: " + plan.PhotonCalculationModel;
                 row["Result"] = "Fail";
             }
             else
@@ -1139,7 +1128,7 @@ namespace QAScript
                 var listofstructures = plan.StructureSet.Structures;
                 foreach (Structure scan in listofstructures)
                 {
-                    if (scan.Name.Contains("Exact IGRT Couch Top"))
+                    if (scan.Name.Contains("Exact IGRT Couch"))
                     {
                         foundcouch = true;
                         bool structHU = scan.GetAssignedHU(out double huValue);
@@ -1216,7 +1205,7 @@ namespace QAScript
                             }
                         }
                     }
-                    if (scan.Name.Contains("Exact IGRT Couch Top"))
+                    if (scan.Name.Contains("Exact IGRT Couch"))
                     {
                         foundcouch = true;
                         wrongcouch = true;
@@ -1268,12 +1257,11 @@ namespace QAScript
                     foundoptics = true;
                 }
             }
-            if (foundoptics == true)
+            if (foundoptics == true && !plan.Id.ToLower().Contains("ent"))
             {
-                if (plan.PhotonCalculationOptions.ContainsKey("CalculationGridSizeInCM"))
+                if (plan.Dose != null)
                 {
-                    string value = plan.PhotonCalculationOptions["CalculationGridSizeInCM"];
-                    if (value != "0.1")
+                    if (!plan.Dose.XRes.Equals(1))
                     {
                         msg += "\n\nThe plan contains optic structures, but the calculation grid size is not 0.1 cm. Is this intentional?";
                         row["Result"] = "Fail";
@@ -1284,12 +1272,11 @@ namespace QAScript
 
             if (plan.Id.ToLower().Contains("lung")) // Lung SBRT
             {
-                if (plan.UniqueFractionation.PrescribedDosePerFraction.Dose > 9)
+                if (plan.DosePerFraction.Dose > 9)
                 {
-                    if (plan.PhotonCalculationOptions.ContainsKey("CalculationGridSizeInCM"))
+                    if (plan.Dose != null)
                     {
-                        string value = plan.PhotonCalculationOptions["CalculationGridSizeInCM"];
-                        if (value != "0.1")
+                        if (!plan.Dose.XRes.Equals(1))
                         {
                             int FSlessthanten = 0;
                             foreach (Beam scan in listofbeams)
@@ -1367,44 +1354,41 @@ namespace QAScript
 
             var foundelectrons = 0;
             var found6MeV = 0;
-            foreach (Beam scan in listofbeams)
+
+            if (plan.Dose != null)
             {
-                if (scan.EnergyModeDisplayName.Contains("E"))
+                foreach (Beam scan in listofbeams)
                 {
-                    foundelectrons = 1;
+                    if (scan.EnergyModeDisplayName.Contains("E"))
+                    {
+                        foundelectrons = 1;
+                    }
+                    if (scan.EnergyModeDisplayName.Contains("6E"))
+                    {
+                        found6MeV = 1;
+                    }
                 }
-                if (scan.EnergyModeDisplayName.Contains("6E"))
+
+                if (foundelectrons.Equals(1) && found6MeV.Equals(1))
                 {
-                    found6MeV = 1;
+                    if (!plan.Dose.XRes.Equals(1))
+                    {
+                        msg += "\n\nThe plan is an electron plan with a 6 MeV beam. The calculation grid size should be 0.1 cm.";
+                        row["Result"] = "Fail";
+                        egridsizeok = 0;
+                    }
+                }
+                if (foundelectrons.Equals(1) && found6MeV.Equals(0))
+                {
+                    if (!plan.Dose.XRes.Equals(1.5))
+                    {
+                        msg += "\n\nThe plan is an electron plan with only energies greater than 6 MeV. The calculation grid size should be 0.15 cm.";
+                        row["Result"] = "Fail";
+                        egridsizeok = 0;
+                    }
                 }
             }
 
-            if (foundelectrons.Equals(1) && found6MeV.Equals(1))
-            {
-                if (plan.ElectronCalculationOptions.ContainsKey("CalculationGridSizeInCM"))
-                {
-                    string value = plan.ElectronCalculationOptions["CalculationGridSizeInCM"];
-                    if (value != "0.10")
-                    {
-                        msg += "\n\nThe plan is an electron plan with a 6 MeV beam. The calculation grid size should be 0.1 cm. It is currently set to " + value + " cm.";
-                        row["Result"] = "Fail";
-                        egridsizeok = 0;
-                    }
-                }
-            }
-            if (foundelectrons.Equals(1) && found6MeV.Equals(0))
-            {
-                if (plan.ElectronCalculationOptions.ContainsKey("CalculationGridSizeInCM"))
-                {
-                    string value = plan.ElectronCalculationOptions["CalculationGridSizeInCM"];
-                    if (value != "0.15")
-                    {
-                        msg += "\n\nThe plan is an electron plan with only energies greater than 6 MeV. The calculation grid size should be 0.15 cm. It is currently set to " + value + " cm.";
-                        row["Result"] = "Fail";
-                        egridsizeok = 0;
-                    }
-                }
-            }
             if (egridsizeok == 2)
             {
                 row["Result"] = "Pass";
@@ -1459,28 +1443,32 @@ namespace QAScript
             foreach (Beam scan in listofbeams)
             {
 
-                double couchangle = scan.ControlPoints.First().PatientSupportAngle;
-                string eclipsecouchangle = "";
-                string stringname = "";
-                if (couchangle != 0)
+                if (!scan.EnergyModeDisplayName.Contains("E"))
                 {
-                    if (couchangle < 180)
+                    double couchangle = scan.ControlPoints.First().PatientSupportAngle;
+                    string eclipsecouchangle = "";
+                    string stringname = "";
+                    if (couchangle != 0)
                     {
-                        eclipsecouchangle = (360 - couchangle).ToString();
-                    }
-                    else if (couchangle > 180)
-                    {
-                        eclipsecouchangle = (360 - couchangle).ToString();
-                    }
-                    stringname = "T" + eclipsecouchangle; // This should be included in the field name. Like "1.1 ARC1 T270" if the table is at 270 degrees.
+                        if (couchangle < 180)
+                        {
+                            eclipsecouchangle = (360 - couchangle).ToString();
+                        }
+                        else if (couchangle > 180)
+                        {
+                            eclipsecouchangle = (360 - couchangle).ToString();
+                        }
+                        stringname = "T" + eclipsecouchangle; // This should be included in the field name. Like "1.1 ARC1 T270" if the table is at 270 degrees.
 
-                    if (!scan.Id.Contains(stringname))
-                    {
-                        msg += "\n\nField: \"" + scan.Id + "\", which has a table angle of " + eclipsecouchangle + " degrees, does not contain " + stringname + " in the field name.";
-                        row["Result"] = "Fail";
-                        noncoplanarnamesok = 0;
+                        if (!scan.Id.Contains(stringname))
+                        {
+                            msg += "\n\nField: \"" + scan.Id + "\", which has a table angle of " + eclipsecouchangle + " degrees, does not contain " + stringname + " in the field name.";
+                            row["Result"] = "Fail";
+                            noncoplanarnamesok = 0;
+                        }
                     }
                 }
+
             }
             if (noncoplanarnamesok == 2)
             {
@@ -1489,11 +1477,60 @@ namespace QAScript
             table.Rows.Add(row);
 
 
-            
+            // Check that the dose rate is the highest setting for all treatment fields.
+            row = table.NewRow();
+            row["Item"] = "The dose rate is set to the highest available value for each treatment beam.";
+            int highestdoserate = 2;
+            foreach (Beam scan in listofbeams)
+            {
+                if (scan.IsSetupField == false)
+                {
+                    if (scan.EnergyModeDisplayName == "6X" || scan.EnergyModeDisplayName == "10X" || scan.EnergyModeDisplayName == "15X")
+                    {
+                        if (scan.DoseRate != 600)
+                        {
+                            msg += "\n\nField: \"" + scan.Id + "\", has a dose rate of " + scan.DoseRate.ToString() + " MU/min instead of the maximum of 600 MU/min";
+                            highestdoserate = 0;
+                        }
+                    }
+                    if (scan.EnergyModeDisplayName == "6X-FFF")
+                    {
+                        if (scan.DoseRate != 1400)
+                        {
+                            msg += "\n\nField: \"" + scan.Id + "\", has a dose rate of " + scan.DoseRate.ToString() + " MU/min instead of the maximum of 1400 MU/min";
+                            highestdoserate = 0;
+                        }
+                    }
+                    if (scan.EnergyModeDisplayName == "10X-FFF")
+                    {
+                        if (scan.DoseRate != 2400)
+                        {
+                            msg += "\n\nField: \"" + scan.Id + "\", has a dose rate of " + scan.DoseRate.ToString() + " MU/min instead of the maximum of 2400 MU/min";
+                            highestdoserate = 0;
+                        }
+                    }
+                    if (scan.EnergyModeDisplayName == "6E" || scan.EnergyModeDisplayName == "9E" || scan.EnergyModeDisplayName == "12E" || scan.EnergyModeDisplayName == "16E" || scan.EnergyModeDisplayName == "20E")
+                    {
+                        if (scan.DoseRate != 1000)
+                        {
+                            msg += "\n\nField: \"" + scan.Id + "\", has a dose rate of " + scan.DoseRate.ToString() + " MU/min instead of the maximum of 1000 MU/min";
+                            highestdoserate = 0;
+                        }
+                    }
 
-                
+                }
+            }
+            if (highestdoserate == 2)
+            {
+                row["Result"] = "Pass";
+            }
+            else if (highestdoserate == 0)
+            {
+                row["Result"] = "Fail";
+            }
+            table.Rows.Add(row);
 
-            
+
             /////////////////////////////////////////////////////////////////////////////
             // Write back current message and datatable
             SomeProperties.MsgString = msg;

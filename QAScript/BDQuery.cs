@@ -44,9 +44,11 @@ namespace QAScript
                 MessageBox.Show("Error: For some reason the script was not able to connect to the SQL server. The Error message was:\n" + e.ToString());
             }
 
-            // Open connection again as the "using" command in the connection test above closed it. 
+            // Open connection again as the "using" command in the connection test above closed it. By including "USE VARIAN", future connections remember what DB is used.
             connection = new SqlConnection(builder.ConnectionString);
             connection.Open();
+            new SqlCommand("USE VARIAN;", connection).ExecuteReader().Close();
+
 
             ////////////////////////////////
             // Begin to do actual tests here
@@ -70,38 +72,42 @@ namespace QAScript
 
             if (foundarc == true)
             {
+
                 sql = "SELECT PlanSetup.PlanNormFactor" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient" +
+                " FROM PlanSetup, Course, Patient" +
                 " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
 
                 SQLcmd = new SqlCommand(sql, connection);
                 dataReader = SQLcmd.ExecuteReader();
 
-                emptydatareader = false;
-                if (!dataReader.HasRows)
+                if (dataReader.HasRows)
                 {
-                    emptydatareader = true;
+                    while (dataReader.Read())
+                    {
+                        Output = dataReader.GetValue(0).ToString();
+                    }
+                    dataReader.Close();
+
+                    double normval = double.Parse(Output);
+                    normval = 100 * (1 / normval);
+
+                    if (normval < 90 || normval > 110)
+                    {
+                        msg += "\n\nPlan normalization value deviates from 100% by more than 10%. The actual value is " + Math.Round(normval, 1) + "%. Values outside this range can indicate poor delivery accuracy, possibly caused by changing the dose per fraction after an optimization, or normalizing the plan far away from the target objective in the optimizer.";
+                        row["Result"] = "Fail";
+                    }
+                    else
+                    {
+                        row["Result"] = "Pass";
+                    }
+                }
+                else
+                {
+                    // The data reader is empty (no normalization was returned) and the details window will show the test result as "unknown"
                 }
 
-                while (dataReader.Read())
-                {
-                    Output = dataReader.GetValue(0).ToString();
-                }
-                dataReader.Close();
 
-                double normval = double.Parse(Output);
-                normval = 100 * (1 / normval);
-
-                if (normval < 90 || normval > 110)
-                {
-                    msg += "\n\nPlan normalization value deviates from 100% by more than 10%. The actual value is " + Math.Round(normval, 1) + "%. Values outside this range can indicate poor delivery accuracy, possibly caused by changing the dose per fraction after an optimization, or normalizing the plan far away from the target objective in the optimizer.";
-                    row["Result"] = "Fail";
-                }
-                else if (emptydatareader == false)
-                {
-                    row["Result"] = "Pass";
-                }
             }
             else
             {
@@ -114,7 +120,7 @@ namespace QAScript
             // Also check that the setup note begins with the course and plan name.
             // Also get the Tolerance table
             sql = "SELECT ExternalFieldCommon.CouchVrt, ExternalFieldCommon.CouchLng, ExternalFieldCommon.CouchLat, ExternalFieldCommon.IDUPosVrt, ExternalFieldCommon.IDUPosLng, ExternalFieldCommon.IDUPosLat, Radiation.SetupNote, Tolerance.ToleranceId" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.ExternalFieldCommon, variansystem.dbo.Radiation, variansystem.dbo.Tolerance" +
+                " FROM PlanSetup, Course, Patient, ExternalFieldCommon, Radiation, Tolerance" +
                 " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalFieldCommon.RadiationSer AND ExternalFieldCommon.ToleranceSer = Tolerance.ToleranceSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
             SQLcmd = new SqlCommand(sql, connection);
@@ -156,7 +162,7 @@ namespace QAScript
                     foundwrongsetupnote = true;
                 }
                 // Check that the tolerance table name is appropriate depending on the machine selected
-                string Machine = plan.Beams.First().ExternalBeam.Id;
+                string Machine = plan.Beams.First().TreatmentUnit.Id; //v15
                 if (Machine.StartsWith(ToleranceTable) == false)
                 {
                     foundwrongtolerance = true;
@@ -213,7 +219,7 @@ namespace QAScript
 
             // Check ref point stuff
             sql = "SELECT RadiationRefPoint.FieldDose, RefPoint.RefPointId, RefPoint.TotalDoseLimit, RefPoint.DailyDoseLimit, RefPoint.SessionDoseLimit, RefPoint.RefPointType" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.RTPlan, variansystem.dbo.RadiationRefPoint, variansystem.dbo.RefPoint " +
+                " FROM PlanSetup, Course, Patient, RTPlan, RadiationRefPoint, RefPoint " +
                 " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = RTPlan.PlanSetupSer AND RTPlan.RTPlanSer = RadiationRefPoint.RTPlanSer AND" +
                 " RadiationRefPoint.RefPointSer = RefPoint.RefPointSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "' ORDER BY RefPoint.RefPointId ASC";
@@ -258,9 +264,9 @@ namespace QAScript
                         msg += "\n\nThe primary reference point \"" + PrimRefPointName + "\" is missing one or more of its dose limits";
                         row["Result"] = "Fail";
                     }
-                    else if (Convert.ToDouble(plan.TotalPrescribedDose.ValueAsString) != Convert.ToDouble(dtrow[2])
-                        || (plan.UniqueFractionation.PrescribedDosePerFraction.ValueAsString) != Convert.ToDecimal(dtrow[3]).ToString("0.000")
-                        || (plan.UniqueFractionation.PrescribedDosePerFraction.ValueAsString) != Convert.ToDecimal(dtrow[4]).ToString("0.000"))
+                    else if (Convert.ToDouble(plan.TotalDose.ValueAsString) != Convert.ToDouble(dtrow[2])
+                        || (plan.DosePerFraction.ValueAsString) != Convert.ToDecimal(dtrow[3]).ToString("0.000")
+                        || (plan.DosePerFraction.ValueAsString) != Convert.ToDecimal(dtrow[4]).ToString("0.000"))
                     {
                         msg += "\n\nThe primary reference point \"" + PrimRefPointName + "\" limits for at least one of Total, Daily or Session max dose does not seem correct or is missing (assuming only one fraction per day). " +
                             "They are currently set to " + Convert.ToDouble(dtrow[2]).ToString("0.000") + ", " + Convert.ToDouble(dtrow[3]).ToString("0.000") + " and " + Convert.ToDouble(dtrow[4]).ToString("0.000") + " respectively.";
@@ -287,21 +293,38 @@ namespace QAScript
             //Loop through all points in each field and add up the field doses to any point that has radc in the name. Hopefully there are not multiple radcalc points...
             foreach (DataRow dtrow in dt.Rows)
             {
-                if (dtrow[1].ToString().ToLower().Contains("radc"))
+                if (dtrow[1].ToString().ToLower().Contains("rad") && dtrow[0].ToString() != "")
                 {
                     sumradcalcfielddose = sumradcalcfielddose + Convert.ToDecimal(dtrow[0]);
                     foundradcalcpoint = true;
                     radcalcname = dtrow[1].ToString();
                 }
             }
+            // Here we'll complain if there was no RadCalc point found and the plan contains arcs.
+            if (foundradcalcpoint == false)
+            {
+                bool foundarcs = false;
+                foreach (Beam beams in plan.Beams)
+                {
+                    if (beams.IsSetupField == false && beams.Technique.Id.ToLower().Contains("arc"))
+                    {
+                        foundarcs = true;
+                    }
+                }
+                if (foundarcs == true)
+                {
+                    msg += "\n\nThe plan contains arcs, but no RadCalc point was found. Did you mean to add one?";
+                }
+            }
 
-            decimal totalradcalcdose = sumradcalcfielddose * Convert.ToDecimal(plan.UniqueFractionation.NumberOfFractions.Value);
+
+            decimal totalradcalcdose = sumradcalcfielddose * Convert.ToDecimal(plan.NumberOfFractions.Value);
             if (foundradcalcpoint == true)
             {
                 // Loop through the points again, but this time stop on the first radcalc point in order to get the limits from RT chart to comapare against the calculated values
                 foreach (DataRow dtrow in dt.Rows)
                 {
-                    if (dtrow[1].ToString().ToLower().Contains("radc"))
+                    if (dtrow[1].ToString().ToLower().Contains("rad"))
                     {
                         if (dtrow[2].Equals("") || dtrow[3].Equals("") || dtrow[4].Equals(""))
                         {
@@ -329,7 +352,7 @@ namespace QAScript
             // If there is a radcalc point, we'd also want to check that it is in a dose region that is at a minimum 90% of the Rx dose.
             row = table.NewRow();
             row["Item"] = "If a Radcalc point exists, make sure that it's in a high dose region (>90% of the prescription dose)";
-            if (foundradcalcpoint == true && Convert.ToDouble(totalradcalcdose) < (0.9 * Convert.ToDouble(plan.TotalPrescribedDose.ValueAsString)))
+            if (foundradcalcpoint == true && Convert.ToDouble(totalradcalcdose) < (0.9 * plan.TotalDose.Dose))
             {
                 msg += "\n\nThe Radcalc point " + radcalcname + " is in a dose region where the dose is less than 90 percent of the prescription dose. Consider moving it to a higher dose region to improve accuracy.";
                 row["Result"] = "Fail";
@@ -338,12 +361,12 @@ namespace QAScript
             {
                 row["Result"] = "Pass";
             }
-            
+
             table.Rows.Add(row);
 
             // If the plan, ct or structure set ends with "bh" (what we do when we use gating) then the "Use Gated" should be checked in the plan properties. Do ther reverse check as well on the names if the box is checked.
             sql = "SELECT ExternalFieldCommon.MotionCompTechnique" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.Radiation, variansystem.dbo.ExternalFieldCommon " +
+                " FROM PlanSetup, Course, Patient, Radiation, ExternalFieldCommon " +
                 " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalFieldCommon.RadiationSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
             SQLcmd = new SqlCommand(sql, connection);
@@ -418,6 +441,10 @@ namespace QAScript
                     msg += "\n\nOne or more of the plan name, CT name or structure set name end in BH (implying that it's a breath hold technique), but \"Use Gated\" is not checked in the plan properties. Is this correct?";
                     row["Result"] = "Fail";
                 }
+                else
+                {
+                    row["Result"] = "Pass";
+                }
             }
             else if (emptydatareader == false)
             {
@@ -427,7 +454,7 @@ namespace QAScript
 
             // Check that all setup field DRRs have the "Bones" parameter sets applied (Basically the window and level of the DRR).
             sql = "SELECT Radiation.RadiationId, ExternalField.DRRTemplateFileName, ExternalFieldCommon.SetupFieldFlag" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.Radiation, variansystem.dbo.ExternalField, variansystem.dbo.ExternalFieldCommon " +
+                " FROM PlanSetup, Course, Patient, Radiation, ExternalField, ExternalFieldCommon " +
                 " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND" +
                 " Radiation.RadiationSer = ExternalFieldCommon.RadiationSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
@@ -469,15 +496,16 @@ namespace QAScript
             }
             table.Rows.Add(row);
 
-            // Check that the POST field of any RSC+AX plans has the "Extended" option selected and that it's not selected for left plans.
+
+            // Check that the POST field of any RSC+AX plans has the "Extended" option selected for gantry 177, 178, 179 or 180. For left sided plans, gantry angles of 181, 182 and 183 should also have it checked.
             row = table.NewRow();
-            row["Item"] = "Check that the POST field of any RSC+AX plans has the \"extended\' option selected and left plans do not";
-            bool extendedcheckpassed = false;
-            if (plan.Id.ToLower().Contains("rsc+ax")) // This implies that it's a right "McGill" technique where we want the post field to have the "extended" checkbox enabled.
+            row["Item"] = "Check that the POST field of any SC+AX plans has the correct \"extended\' setting based on the gantry angle";
+            int extendedcheckpassed = 2;
+            if (plan.Id.ToLower().Contains("rsc+ax")) // This implies that it's a right "McGill" technique.
             {
-                sql = "SELECT Radiation.RadiationId, ExternalField.GantryRtnExt" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.Radiation, variansystem.dbo.ExternalField " +
-                " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND" +
+                sql = "SELECT Radiation.RadiationId, ExternalField.GantryRtnExt, ExternalField.GantryRtn, ExternalFieldCommon.SetupFieldFlag" +
+                " FROM PlanSetup, Course, Patient, Radiation, ExternalField, ExternalFieldCommon " +
+                " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND Radiation.RadiationSer = ExternalFieldCommon.RadiationSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
                 SQLcmd = new SqlCommand(sql, connection);
                 dataReader = SQLcmd.ExecuteReader();
@@ -486,30 +514,37 @@ namespace QAScript
                 {
                     string RadiationId = dataReader.GetValue(0).ToString(); // The field ID
                     string GantryRtnExt = dataReader.GetValue(1).ToString(); // Two characters, one for the start and one for the stop angle. Each character is either "E" or "N". Ex: EE, EN, NE, or NN.
+                    string GantryRtn = dataReader.GetValue(2).ToString(); // The gantry angle
+                    string SetupFieldFlag = dataReader.GetValue(3).ToString(); // A flag (0 or 1) that indicates whether or not the field is a setup field.
 
-                    if (RadiationId.ToLower().Contains("post"))
+                    if (RadiationId.ToLower().Contains("post") && SetupFieldFlag == "0")
                     {
-                        if (GantryRtnExt != "EN")
+                        if (Convert.ToDouble(GantryRtn) <= 180 && Convert.ToDouble(GantryRtn) >= 175)
                         {
-                            msg += "\n\nThis plan is a right SC+AX plan. It's expected that the \"Extended\" option in the field properties is selected, but it's not.";
-                            row["Result"] = "Fail";
+                            if (GantryRtnExt != "EN")
+                            {
+                                msg += "\n\nThis plan is a right SC+AX plan. POST fields with angles less than or equal to 180 should have the \"Extended\" option in the field properties is selected, but it's not.";
+                                extendedcheckpassed = 0;
+                            }
                         }
-                        else
+                        if (Convert.ToDouble(GantryRtn) > 180 && Convert.ToDouble(GantryRtn) <= 185)
                         {
-                            extendedcheckpassed = true;
+                            if (GantryRtnExt != "NN")
+                            {
+                                msg += "\n\nThis plan is a right SC+AX plan. POST fields with angles above 180 should not have the \"Extended\" option in the field properties is selected, but it is.";
+                                extendedcheckpassed = 0;
+                            }
                         }
-
                     }
                 }
                 dataReader.Close();
             }
-
             // Now for left sided plans
-            else if (plan.Id.ToLower().Contains("lsc+ax")) // This implies that it's a left "McGill" technique where we want the post field to not have the "extended" checkbox enabled.
+            else if (plan.Id.ToLower().Contains("lsc+ax")) // This implies that it's a left "McGill" technique.
             {
-                sql = "SELECT Radiation.RadiationId, ExternalField.GantryRtnExt" +
-                " FROM variansystem.dbo.PlanSetup, variansystem.dbo.Course, variansystem.dbo.Patient, variansystem.dbo.Radiation, variansystem.dbo.ExternalField " +
-                " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND" +
+                sql = "SELECT Radiation.RadiationId, ExternalField.GantryRtnExt, ExternalField.GantryRtn, ExternalFieldCommon.SetupFieldFlag" +
+                " FROM PlanSetup, Course, Patient, Radiation, ExternalField, ExternalFieldCommon " +
+                " WHERE PlanSetup.CourseSer = Course.CourseSer AND Course.PatientSer = Patient.PatientSer AND PlanSetup.PlanSetupSer = Radiation.PlanSetupSer AND Radiation.RadiationSer = ExternalField.RadiationSer AND Radiation.RadiationSer = ExternalFieldCommon.RadiationSer AND" +
                 " Patient.PatientId='" + SomeProperties.PatientId + "' AND Course.CourseId='" + SomeProperties.CourseId + "' AND PlanSetup.PlanSetupId='" + SomeProperties.PlanId + "'";
                 SQLcmd = new SqlCommand(sql, connection);
                 dataReader = SQLcmd.ExecuteReader();
@@ -518,31 +553,38 @@ namespace QAScript
                 {
                     string RadiationId = dataReader.GetValue(0).ToString(); // The field ID
                     string GantryRtnExt = dataReader.GetValue(1).ToString(); // Two characters, one for the start and one for the stop angle. Each character is either "E" or "N". Ex: EE, EN, NE, or NN.
+                    string GantryRtn = dataReader.GetValue(2).ToString(); // The gantry angle
+                    string SetupFieldFlag = dataReader.GetValue(3).ToString(); // A flag (0 or 1) that indicates whether or not the field is a setup field.
 
-                    if (RadiationId.ToLower().Contains("post"))
+                    if (RadiationId.ToLower().Contains("post") && SetupFieldFlag == "0")
                     {
-                        if (GantryRtnExt != "NN")
+                        if (Convert.ToDouble(GantryRtn) > 180 && Convert.ToDouble(GantryRtn) <= 185)
                         {
-                            msg += "\n\nThis plan is a left SC+AX plan. It's expected that the \"Extended\" option in the field properties is not selected, but it is.";
-                            row["Result"] = "Fail";
+                            if (GantryRtnExt != "EN")
+                            {
+                                msg += "\n\nThis plan is a left SC+AX plan. POST fields with angles greater than 180 should have the \"Extended\" option in the field properties is selected, but it's not.";
+                                extendedcheckpassed = 0;
+                            }
                         }
-                        else
+                        if (Convert.ToDouble(GantryRtn) <= 180 && Convert.ToDouble(GantryRtn) >= 175)
                         {
-                            extendedcheckpassed = true;
+                            if (GantryRtnExt != "NN")
+                            {
+                                msg += "\n\nThis plan is a left SC+AX plan. POST fields with angles less than or equal to 180 should not have the \"Extended\" option in the field properties is selected, but it is.";
+                                extendedcheckpassed = 0;
+                            }
                         }
-
                     }
                 }
                 dataReader.Close();
             }
-            else
-            {
-                extendedcheckpassed = true;
-            }
-
-            if (extendedcheckpassed == true)
+            if (extendedcheckpassed == 2)
             {
                 row["Result"] = "Pass";
+            }
+            else if (extendedcheckpassed == 0)
+            {
+                row["Result"] = "Fail";
             }
             table.Rows.Add(row);
 

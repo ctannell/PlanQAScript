@@ -20,13 +20,6 @@ namespace QAScript
             // Launch the class that does general plan checks from API retrieved data. Inside this class the code will be the same between the standalone and script versions.
             GeneralTests.RunGeneralTests(patient, course, plan);
 
-            // Same as above, but it includes the code that's specific to the MUHC
-            MUHCSpecificTests.RunMUHC(patient, course, plan);
-
-            //// Run any other hospital-specific or unique tests here in a new class as done above. ////
-            //                                                                                        //
-            ////                                                                                    ////
-
 
             // Check message to see if anything was found and update the msg property.
             string msg = SomeProperties.MsgString;
